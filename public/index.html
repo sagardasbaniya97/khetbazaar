@@ -355,40 +355,7 @@
 
 <!-- PAGE: ADMIN -->
 <div id="page-admin" class="page">
-  <h2 class="page-heading">⚙️ Admin Panel</h2>
-  <div class="admin-tabs">
-    <button class="tab-btn active" onclick="switchAdminTab('addProduct', this)">Add Product</button>
-    <button class="tab-btn" onclick="switchAdminTab('manageProducts', this)">Manage Products</button>
-    <button class="tab-btn" onclick="switchAdminTab('allOrders', this)">All Orders</button>
-  </div>
-  <div id="admin-addProduct" class="admin-panel">
-    <div class="admin-form-card">
-      <h3>Add New Product</h3>
-      <div class="form-grid">
-        <input type="text" id="aName" placeholder="Product Name *"/>
-        <select id="aCategory">
-          <option value="">Select Category *</option>
-          <option>Vegetable Seeds</option>
-          <option>Grain Seeds</option>
-          <option>Fruit Seeds</option>
-          <option>Farming Tools</option>
-        </select>
-        <input type="number" id="aPrice" placeholder="Price (₹) *"/>
-        <input type="number" id="aStock" placeholder="Stock Quantity *"/>
-        <input type="text" id="aImage" placeholder="Image URL (Unsplash or any)"/>
-        <input type="text" id="aUnit" placeholder="Unit (e.g. 100g, 1 piece)"/>
-        <textarea id="aDesc" placeholder="Product description..." rows="3" style="grid-column:1/-1"></textarea>
-        <input type="text" id="aTags" placeholder="Tags (comma-separated)" style="grid-column:1/-1"/>
-      </div>
-      <button class="btn-primary" onclick="addProduct()">Add Product</button>
-    </div>
-  </div>
-  <div id="admin-manageProducts" class="admin-panel" style="display:none">
-    <div id="adminProductList"></div>
-  </div>
-  <div id="admin-allOrders" class="admin-panel" style="display:none">
-    <div id="adminOrderList"></div>
-  </div>
+  <!-- Filled dynamically by renderAdminPage() in app.js -->
 </div>
 
 <!-- PAGE: ACCOUNT (Login / Signup / Profile) -->

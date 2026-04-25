@@ -74,7 +74,7 @@ function navigate(page) {
   if (page === 'shop')    renderShop();
   if (page === 'cart')    renderCart();
   if (page === 'orders')  renderOrders();
-  if (page === 'admin')   renderAdminProducts();
+  if (page === 'admin')   renderAdminPage();
   if (page === 'home')    renderFeatured();
   if (page === 'account') renderAccount();
 }
@@ -620,6 +620,7 @@ function switchAdminTab(tab, btn) {
   if (btn) btn.classList.add('active');
   if (tab === 'manageProducts') renderAdminProducts();
   if (tab === 'allOrders')      renderAdminOrders();
+  if (tab === 'manageAdmins')   renderAdminList();
 }
 
 // ── Product Modal ─────────────────────────────────────────────
@@ -677,3 +678,231 @@ document.addEventListener('keydown', e => {
 updateCartBadge();
 updateNavAuth();
 navigate('home');
+
+// ── Admin Auth helpers ────────────────────────────────────────
+function getAdminToken() { return localStorage.getItem('kb_admin_token'); }
+function getAdminUser()  { try { return JSON.parse(localStorage.getItem('kb_admin_user')); } catch { return null; } }
+function isAdminLoggedIn() { return !!getAdminToken(); }
+
+function saveAdminAuth(token, admin) {
+  localStorage.setItem('kb_admin_token', token);
+  localStorage.setItem('kb_admin_user', JSON.stringify(admin));
+}
+
+function clearAdminAuth() {
+  localStorage.removeItem('kb_admin_token');
+  localStorage.removeItem('kb_admin_user');
+}
+
+// ── Admin API helpers ─────────────────────────────────────────
+async function adminFetch(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (getAdminToken()) headers['Authorization'] = 'Bearer ' + getAdminToken();
+  const res = await fetch(API_BASE + path, { headers, ...options });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || res.statusText);
+  }
+  return res.json();
+}
+
+const adminApi = {
+  login:        (doc)  => adminFetch('/admin/login', { method: 'POST', body: JSON.stringify(doc) }),
+  getAdmins:    ()     => adminFetch('/admin/list'),
+  addAdmin:     (doc)  => adminFetch('/admin/add', { method: 'POST', body: JSON.stringify(doc) }),
+  removeAdmin:  (id)   => adminFetch(`/admin/remove/${id}`, { method: 'DELETE' }),
+};
+
+// ── Admin Login handler ───────────────────────────────────────
+async function handleAdminLogin() {
+  const email    = document.getElementById('adminLoginEmail').value.trim();
+  const password = document.getElementById('adminLoginPassword').value;
+  if (!email || !password) return showToast('⚠️ Please enter email and password!');
+
+  const btn = document.getElementById('adminLoginBtn');
+  btn.disabled = true; btn.textContent = 'Logging in…';
+
+  try {
+    const data = await adminApi.login({ email, password });
+    saveAdminAuth(data.token, data.admin);
+    showToast(`✅ Welcome, ${data.admin.name}!`);
+    renderAdminPage();
+  } catch (err) {
+    showToast('❌ ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Login to Admin Panel';
+  }
+}
+
+// ── Admin Logout ──────────────────────────────────────────────
+function handleAdminLogout() {
+  clearAdminAuth();
+  showToast('👋 Admin logged out!');
+  renderAdminPage();
+}
+
+// ── Render Admin Page (login or panel) ───────────────────────
+function renderAdminPage() {
+  const page = document.getElementById('page-admin');
+  if (!page) return;
+
+  if (!isAdminLoggedIn()) {
+    // Show admin login form
+    page.innerHTML = `
+      <div class="auth-container" style="margin-top:60px">
+        <div style="text-align:center;margin-bottom:24px">
+          <div style="font-size:3rem">⚙️</div>
+          <h2 class="auth-title" style="margin-top:8px">Admin Login</h2>
+          <p class="auth-sub">Only authorized admins can access this panel.</p>
+        </div>
+        <div class="auth-field">
+          <label>Email Address</label>
+          <input id="adminLoginEmail" type="email" placeholder="admin@khetbazaar.com"/>
+        </div>
+        <div class="auth-field">
+          <label>Password</label>
+          <input id="adminLoginPassword" type="password" placeholder="Enter admin password"
+            onkeydown="if(event.key==='Enter') handleAdminLogin()"/>
+        </div>
+        <button id="adminLoginBtn" class="btn-primary auth-submit" onclick="handleAdminLogin()">
+          Login to Admin Panel
+        </button>
+      </div>`;
+  } else {
+    // Show full admin panel
+    const admin = getAdminUser();
+    const isSuperAdmin = admin?.role === 'superadmin';
+
+    page.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 0;flex-wrap:wrap;gap:12px">
+        <h2 class="page-heading" style="margin:0">⚙️ Admin Panel</h2>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:0.9rem;color:var(--text-muted)">
+            👤 ${admin?.name} 
+            <span style="background:${isSuperAdmin ? '#e8f5e9' : '#fff3e0'};color:${isSuperAdmin ? '#2d6a4f' : '#e65100'};
+              padding:2px 8px;border-radius:20px;font-size:0.75rem;font-weight:600;margin-left:6px">
+              ${isSuperAdmin ? '⭐ Super Admin' : 'Admin'}
+            </span>
+          </span>
+          <button class="btn-logout" style="width:auto;padding:8px 16px" onclick="handleAdminLogout()">🚪 Logout</button>
+        </div>
+      </div>
+
+      <div class="admin-tabs" style="margin-top:16px">
+        <button class="tab-btn active" onclick="switchAdminTab('addProduct', this)">Add Product</button>
+        <button class="tab-btn" onclick="switchAdminTab('manageProducts', this)">Manage Products</button>
+        <button class="tab-btn" onclick="switchAdminTab('allOrders', this)">All Orders</button>
+        ${isSuperAdmin ? `<button class="tab-btn" onclick="switchAdminTab('manageAdmins', this)">Manage Admins</button>` : ''}
+      </div>
+
+      <div id="admin-addProduct" class="admin-panel">
+        <div class="admin-form-card">
+          <h3>Add New Product</h3>
+          <div class="form-grid">
+            <input type="text" id="aName" placeholder="Product Name *"/>
+            <select id="aCategory">
+              <option value="">Select Category *</option>
+              <option>Vegetable Seeds</option>
+              <option>Grain Seeds</option>
+              <option>Fruit Seeds</option>
+              <option>Farming Tools</option>
+            </select>
+            <input type="number" id="aPrice" placeholder="Price (₹) *"/>
+            <input type="number" id="aStock" placeholder="Stock Quantity *"/>
+            <input type="text" id="aImage" placeholder="Image URL (Unsplash or any)"/>
+            <input type="text" id="aUnit" placeholder="Unit (e.g. 100g, 1 piece)"/>
+            <textarea id="aDesc" placeholder="Product description..." rows="3" style="grid-column:1/-1"></textarea>
+            <input type="text" id="aTags" placeholder="Tags (comma-separated)" style="grid-column:1/-1"/>
+          </div>
+          <button class="btn-primary" onclick="addProduct()">Add Product</button>
+        </div>
+      </div>
+
+      <div id="admin-manageProducts" class="admin-panel" style="display:none">
+        <div id="adminProductList"></div>
+      </div>
+
+      <div id="admin-allOrders" class="admin-panel" style="display:none">
+        <div id="adminOrderList"></div>
+      </div>
+
+      ${isSuperAdmin ? `
+      <div id="admin-manageAdmins" class="admin-panel" style="display:none">
+        <div class="admin-form-card">
+          <h3>➕ Add New Admin</h3>
+          <div class="form-grid">
+            <input type="text" id="newAdminName" placeholder="Full Name *"/>
+            <input type="email" id="newAdminEmail" placeholder="Email Address *"/>
+            <input type="password" id="newAdminPassword" placeholder="Password (min 6 chars) *"/>
+          </div>
+          <button class="btn-primary" onclick="addNewAdmin()">Add Admin</button>
+        </div>
+        <div id="adminList" style="margin-top:24px"></div>
+      </div>` : ''}
+    `;
+  }
+}
+
+// ── Add new admin (super admin only) ─────────────────────────
+async function addNewAdmin() {
+  const name     = document.getElementById('newAdminName').value.trim();
+  const email    = document.getElementById('newAdminEmail').value.trim();
+  const password = document.getElementById('newAdminPassword').value;
+  if (!name || !email || !password) return showToast('⚠️ Please fill all fields!');
+  if (password.length < 6) return showToast('⚠️ Password must be at least 6 characters!');
+
+  try {
+    const result = await adminApi.addAdmin({ name, email, password });
+    showToast('✅ ' + result.message);
+    ['newAdminName','newAdminEmail','newAdminPassword'].forEach(id => document.getElementById(id).value = '');
+    renderAdminList();
+  } catch (err) { showToast('❌ ' + err.message); }
+}
+
+// ── Render admin list ─────────────────────────────────────────
+async function renderAdminList() {
+  const container = document.getElementById('adminList');
+  if (!container) return;
+  try {
+    const admins = await adminApi.getAdmins();
+    container.innerHTML = `
+      <h3 style="margin-bottom:12px">👥 All Admins</h3>
+      <table class="admin-product-table">
+        <thead>
+          <tr><th>Name</th><th>Email</th><th>Role</th><th>Added</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          ${admins.map(a => `
+            <tr>
+              <td>${a.name}</td>
+              <td>${a.email}</td>
+              <td>
+                <span style="background:${a.role==='superadmin'?'#e8f5e9':'#fff3e0'};
+                  color:${a.role==='superadmin'?'#2d6a4f':'#e65100'};
+                  padding:2px 10px;border-radius:20px;font-size:0.8rem;font-weight:600">
+                  ${a.role === 'superadmin' ? '⭐ Super Admin' : 'Admin'}
+                </span>
+              </td>
+              <td>${new Date(a.createdAt).toLocaleDateString('en-IN')}</td>
+              <td>
+                ${a.role !== 'superadmin'
+                  ? `<button class="btn-danger" onclick="removeAdmin('${a._id}', '${a.name}')">🗑 Remove</button>`
+                  : '<span style="color:var(--text-muted);font-size:0.85rem">—</span>'}
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch (err) {
+    container.innerHTML = `<p style="color:var(--text-muted)">⚠️ ${err.message}</p>`;
+  }
+}
+
+// ── Remove admin ──────────────────────────────────────────────
+async function removeAdmin(id, name) {
+  if (!confirm(`Remove admin "${name}"?`)) return;
+  try {
+    const result = await adminApi.removeAdmin(id);
+    showToast('✅ ' + result.message);
+    renderAdminList();
+  } catch (err) { showToast('❌ ' + err.message); }
+}

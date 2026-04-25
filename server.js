@@ -24,7 +24,8 @@ app.use(async (_req, _res, next) => {
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', time: new Date() }));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/orders',   require('./routes/orders'));
-app.use('/api/users',    require('./routes/users'));   // ← NEW
+app.use('/api/users',    require('./routes/users'));
+app.use('/api/admin',    require('./routes/admin'));   // ← NEW
 
 // Serve frontend
 app.use(express.static(path.join(__dirname, 'public')));
