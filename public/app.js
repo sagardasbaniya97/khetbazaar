@@ -1,7 +1,6 @@
 /**
- * KhetBazaar – app.js
+ * KhetBazaar – app.js  (v3 – with User Auth)
  * Connects to the Express/MongoDB backend via fetch().
- * Uses real product images stored in the `image` field.
  */
 
 const API_BASE =
@@ -9,12 +8,27 @@ const API_BASE =
     ? 'https://khetbazaar-pgls.vercel.app/api'
     : '/api';
 
-// ── API helpers ──────────────────────────────────────────────
+// ── Auth helpers ──────────────────────────────────────────────
+function getToken()    { return localStorage.getItem('kb_token'); }
+function getUser()     { try { return JSON.parse(localStorage.getItem('kb_user')); } catch { return null; } }
+function isLoggedIn()  { return !!getToken(); }
+
+function saveAuth(token, user) {
+  localStorage.setItem('kb_token', token);
+  localStorage.setItem('kb_user', JSON.stringify(user));
+}
+
+function clearAuth() {
+  localStorage.removeItem('kb_token');
+  localStorage.removeItem('kb_user');
+}
+
+// ── API helpers ───────────────────────────────────────────────
 async function apiFetch(path, options = {}) {
-  const res = await fetch(API_BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const headers = { 'Content-Type': 'application/json' };
+  if (getToken()) headers['Authorization'] = 'Bearer ' + getToken();
+
+  const res = await fetch(API_BASE + path, { headers, ...options });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);
@@ -36,6 +50,9 @@ const api = {
   getOrders:     ()           => apiFetch('/orders'),
   createOrder:   (doc)        => apiFetch('/orders', { method: 'POST', body: JSON.stringify(doc) }),
   updateOrder:   (id, patch)  => apiFetch(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  signup:        (doc)        => apiFetch('/users/signup', { method: 'POST', body: JSON.stringify(doc) }),
+  login:         (doc)        => apiFetch('/users/login',  { method: 'POST', body: JSON.stringify(doc) }),
+  getMe:         ()           => apiFetch('/users/me'),
 };
 
 // ── State ─────────────────────────────────────────────────────
@@ -54,11 +71,12 @@ function navigate(page) {
     a.classList.toggle('active', a.dataset.page === page);
   });
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  if (page === 'shop')   renderShop();
-  if (page === 'cart')   renderCart();
-  if (page === 'orders') renderOrders();
-  if (page === 'admin')  renderAdminProducts();
-  if (page === 'home')   renderFeatured();
+  if (page === 'shop')    renderShop();
+  if (page === 'cart')    renderCart();
+  if (page === 'orders')  renderOrders();
+  if (page === 'admin')   renderAdminProducts();
+  if (page === 'home')    renderFeatured();
+  if (page === 'account') renderAccount();
 }
 
 function filterAndNav(category) {
@@ -80,10 +98,6 @@ function showToast(msg) {
 }
 
 // ── Image helper ──────────────────────────────────────────────
-/**
- * Returns an <img> tag if the product has an image URL,
- * otherwise a fallback div with the emoji.
- */
 function productImageHTML(p, extraClass = '') {
   if (p.image) {
     return `<img src="${p.image}" alt="${p.name}" class="${extraClass}"
@@ -91,6 +105,170 @@ function productImageHTML(p, extraClass = '') {
             <div class="img-fallback" style="display:none">${p.emoji || '🌿'}</div>`;
   }
   return `<div class="img-fallback">${p.emoji || '🌿'}</div>`;
+}
+
+// ── Navbar: update account button ────────────────────────────
+function updateNavAuth() {
+  const user = getUser();
+  const accountLink = document.getElementById('accountNavLink');
+  const mobileAccountLink = document.getElementById('mobileAccountNavLink');
+  if (!accountLink) return;
+
+  if (user) {
+    const label = `👤 ${user.name.split(' ')[0]}`;
+    accountLink.textContent = label;
+    if (mobileAccountLink) mobileAccountLink.textContent = label;
+  } else {
+    accountLink.textContent = 'Login';
+    if (mobileAccountLink) mobileAccountLink.textContent = 'Login';
+  }
+}
+
+// ── Auth: Signup ──────────────────────────────────────────────
+async function handleSignup() {
+  const name     = document.getElementById('signupName').value.trim();
+  const email    = document.getElementById('signupEmail').value.trim();
+  const phone    = document.getElementById('signupPhone').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  const confirm  = document.getElementById('signupConfirm').value;
+
+  if (!name || !email || !password) return showToast('⚠️ Please fill all required fields!');
+  if (password.length < 6)          return showToast('⚠️ Password must be at least 6 characters!');
+  if (password !== confirm)         return showToast('⚠️ Passwords do not match!');
+  if (phone && !/^\d{10}$/.test(phone)) return showToast('⚠️ Enter a valid 10-digit phone number!');
+
+  const btn = document.getElementById('signupBtn');
+  btn.disabled = true; btn.textContent = 'Creating account…';
+
+  try {
+    const data = await api.signup({ name, email, password, phone });
+    saveAuth(data.token, data.user);
+    updateNavAuth();
+    showToast(`🎉 Welcome to KhetBazaar, ${data.user.name}!`);
+    navigate('account');
+    // Clear form
+    ['signupName','signupEmail','signupPhone','signupPassword','signupConfirm']
+      .forEach(id => document.getElementById(id).value = '');
+  } catch (err) {
+    showToast('❌ ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create Account';
+  }
+}
+
+// ── Auth: Login ───────────────────────────────────────────────
+async function handleLogin() {
+  const email    = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+
+  if (!email || !password) return showToast('⚠️ Please enter email and password!');
+
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'Logging in…';
+
+  try {
+    const data = await api.login({ email, password });
+    saveAuth(data.token, data.user);
+    updateNavAuth();
+    showToast(`✅ Welcome back, ${data.user.name}!`);
+    navigate('account');
+    ['loginEmail','loginPassword'].forEach(id => document.getElementById(id).value = '');
+  } catch (err) {
+    showToast('❌ ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Login';
+  }
+}
+
+// ── Auth: Logout ──────────────────────────────────────────────
+function handleLogout() {
+  clearAuth();
+  updateNavAuth();
+  showToast('👋 Logged out successfully!');
+  navigate('home');
+}
+
+// ── Account Page ──────────────────────────────────────────────
+function renderAccount() {
+  const page = document.getElementById('page-account');
+  if (!page) return;
+  const user = getUser();
+
+  if (!user) {
+    // Show login / signup tabs
+    page.innerHTML = `
+      <div class="auth-container">
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tabLoginBtn" onclick="switchAuthTab('login')">Login</button>
+          <button class="auth-tab" id="tabSignupBtn" onclick="switchAuthTab('signup')">Sign Up</button>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <div id="authLogin" class="auth-panel active">
+          <h2 class="auth-title">Welcome Back 👋</h2>
+          <p class="auth-sub">Login to track your orders and manage your profile.</p>
+          <div class="auth-field">
+            <label>Email Address</label>
+            <input id="loginEmail" type="email" placeholder="you@example.com"/>
+          </div>
+          <div class="auth-field">
+            <label>Password</label>
+            <input id="loginPassword" type="password" placeholder="Enter your password"/>
+          </div>
+          <button id="loginBtn" class="btn-primary auth-submit" onclick="handleLogin()">Login</button>
+          <p class="auth-switch">Don't have an account? <a href="#" onclick="switchAuthTab('signup')">Sign Up</a></p>
+        </div>
+
+        <!-- SIGNUP FORM -->
+        <div id="authSignup" class="auth-panel">
+          <h2 class="auth-title">Create Account 🌱</h2>
+          <p class="auth-sub">Join KhetBazaar — fresh from the farm to your door.</p>
+          <div class="auth-field">
+            <label>Full Name <span class="required">*</span></label>
+            <input id="signupName" type="text" placeholder="Ramesh Kumar"/>
+          </div>
+          <div class="auth-field">
+            <label>Email Address <span class="required">*</span></label>
+            <input id="signupEmail" type="email" placeholder="you@example.com"/>
+          </div>
+          <div class="auth-field">
+            <label>Phone Number</label>
+            <input id="signupPhone" type="tel" placeholder="10-digit number (optional)"/>
+          </div>
+          <div class="auth-field">
+            <label>Password <span class="required">*</span></label>
+            <input id="signupPassword" type="password" placeholder="Minimum 6 characters"/>
+          </div>
+          <div class="auth-field">
+            <label>Confirm Password <span class="required">*</span></label>
+            <input id="signupConfirm" type="password" placeholder="Repeat your password"/>
+          </div>
+          <button id="signupBtn" class="btn-primary auth-submit" onclick="handleSignup()">Create Account</button>
+          <p class="auth-switch">Already have an account? <a href="#" onclick="switchAuthTab('login')">Login</a></p>
+        </div>
+      </div>`;
+  } else {
+    // Show profile
+    page.innerHTML = `
+      <div class="auth-container profile-container">
+        <div class="profile-avatar">👤</div>
+        <h2 class="profile-name">${user.name}</h2>
+        <p class="profile-email">📧 ${user.email}</p>
+        ${user.phone ? `<p class="profile-phone">📱 ${user.phone}</p>` : ''}
+        <div class="profile-actions">
+          <button class="btn-primary" onclick="navigate('orders')">📦 My Orders</button>
+          <button class="btn-ghost" onclick="navigate('shop')">🛒 Shop Now</button>
+        </div>
+        <button class="btn-logout" onclick="handleLogout()">🚪 Logout</button>
+      </div>`;
+  }
+}
+
+function switchAuthTab(tab) {
+  document.querySelectorAll('.auth-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.auth-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('auth' + tab.charAt(0).toUpperCase() + tab.slice(1))?.classList.add('active');
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1) + 'Btn')?.classList.add('active');
 }
 
 // ── Home: Featured Products ───────────────────────────────────
@@ -243,6 +421,15 @@ function renderCart() {
         </div>
         <button class="cart-remove" onclick="removeFromCart('${item._id}')">🗑</button>
       </div>`).join('');
+  }
+
+  // Pre-fill buyer details from logged-in user
+  const user = getUser();
+  if (user) {
+    const nameEl  = document.getElementById('buyerName');
+    const phoneEl = document.getElementById('buyerPhone');
+    if (nameEl && !nameEl.value)  nameEl.value  = user.name  || '';
+    if (phoneEl && !phoneEl.value) phoneEl.value = user.phone || '';
   }
 
   const subtotal = cartTotal();
@@ -460,7 +647,6 @@ async function openModal(id) {
         </button>
       </div>`;
 
-    // Reset scroll inside modal
     document.querySelector('.modal-card').scrollTop = 0;
     document.getElementById('modalOverlay').classList.add('open');
   } catch (err) { showToast('⚠️ ' + err.message); }
@@ -489,4 +675,5 @@ document.addEventListener('keydown', e => {
 
 // ── Init ──────────────────────────────────────────────────────
 updateCartBadge();
+updateNavAuth();
 navigate('home');

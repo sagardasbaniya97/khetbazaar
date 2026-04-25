@@ -6,6 +6,146 @@
   <title>KhetBazaar – Seeds & Farm Tools</title>
   <link rel="stylesheet" href="style.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    /* ── Auth / Account Styles ─────────────────────────────── */
+    .auth-container {
+      max-width: 460px;
+      margin: 48px auto;
+      background: var(--white, #fff);
+      border-radius: 20px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.10);
+      padding: 40px 36px;
+    }
+    .auth-tabs {
+      display: flex;
+      gap: 0;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1.5px solid var(--green-light, #a8d5a2);
+      margin-bottom: 28px;
+    }
+    .auth-tab {
+      flex: 1;
+      padding: 11px 0;
+      font-size: 0.97rem;
+      font-weight: 600;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--green-dark, #2d6a4f);
+      transition: background 0.2s, color 0.2s;
+    }
+    .auth-tab.active {
+      background: var(--green-dark, #2d6a4f);
+      color: #fff;
+    }
+    .auth-panel { display: none; }
+    .auth-panel.active { display: block; }
+    .auth-title {
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: var(--green-dark, #2d6a4f);
+      margin: 0 0 6px;
+    }
+    .auth-sub {
+      color: var(--text-muted, #888);
+      font-size: 0.93rem;
+      margin-bottom: 22px;
+    }
+    .auth-field {
+      margin-bottom: 16px;
+    }
+    .auth-field label {
+      display: block;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-dark, #222);
+      margin-bottom: 5px;
+    }
+    .auth-field input {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 0.97rem;
+      font-family: inherit;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    .auth-field input:focus {
+      border-color: var(--green-dark, #2d6a4f);
+    }
+    .required { color: #e53935; }
+    .auth-submit {
+      width: 100%;
+      margin-top: 8px;
+      padding: 13px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .auth-switch {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 0.92rem;
+      color: var(--text-muted, #888);
+    }
+    .auth-switch a {
+      color: var(--green-dark, #2d6a4f);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .auth-switch a:hover { text-decoration: underline; }
+
+    /* Profile */
+    .profile-container { text-align: center; }
+    .profile-avatar {
+      font-size: 4rem;
+      margin-bottom: 10px;
+      background: var(--green-pale, #f0faf0);
+      width: 90px; height: 90px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+      border: 3px solid var(--green-light, #a8d5a2);
+    }
+    .profile-name {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--green-dark, #2d6a4f);
+      margin: 0 0 6px;
+    }
+    .profile-email, .profile-phone {
+      color: var(--text-muted, #888);
+      font-size: 0.95rem;
+      margin: 4px 0;
+    }
+    .profile-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin: 24px 0 16px;
+      flex-wrap: wrap;
+    }
+    .btn-logout {
+      display: block;
+      width: 100%;
+      margin-top: 6px;
+      padding: 11px;
+      background: transparent;
+      border: 1.5px solid #e53935;
+      color: #e53935;
+      border-radius: 10px;
+      font-size: 0.97rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    .btn-logout:hover {
+      background: #e53935;
+      color: #fff;
+    }
+  </style>
 </head>
 <body>
 
@@ -22,6 +162,7 @@
       <a href="#" class="nav-link" data-page="cart">Cart <span class="cart-badge" id="cartBadge">0</span></a>
       <a href="#" class="nav-link" data-page="orders">My Orders</a>
       <a href="#" class="nav-link" data-page="admin">Admin</a>
+      <a href="#" class="nav-link" data-page="account" id="accountNavLink">Login</a>
     </nav>
     <button class="hamburger" id="hamburger">☰</button>
   </div>
@@ -31,6 +172,7 @@
     <a href="#" class="nav-link" data-page="cart">Cart</a>
     <a href="#" class="nav-link" data-page="orders">My Orders</a>
     <a href="#" class="nav-link" data-page="admin">Admin</a>
+    <a href="#" class="nav-link" data-page="account" id="mobileAccountNavLink">Login</a>
   </div>
 </header>
 
@@ -247,6 +389,11 @@
   <div id="admin-allOrders" class="admin-panel" style="display:none">
     <div id="adminOrderList"></div>
   </div>
+</div>
+
+<!-- PAGE: ACCOUNT (Login / Signup / Profile) -->
+<div id="page-account" class="page">
+  <!-- Filled dynamically by renderAccount() in app.js -->
 </div>
 
 <!-- PRODUCT MODAL -->

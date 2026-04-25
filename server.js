@@ -9,7 +9,7 @@ const app = express();
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 app.use(express.json());
@@ -24,6 +24,7 @@ app.use(async (_req, _res, next) => {
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', time: new Date() }));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/orders',   require('./routes/orders'));
+app.use('/api/users',    require('./routes/users'));   // ← NEW
 
 // Serve frontend
 app.use(express.static(path.join(__dirname, 'public')));
