@@ -25,7 +25,8 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', time: new Date() 
 app.use('/api/products', require('./routes/products'));
 app.use('/api/orders',   require('./routes/orders'));
 app.use('/api/users',    require('./routes/users'));
-app.use('/api/admin',    require('./routes/admin'));   // ← NEW
+app.use('/api/admin',    require('./routes/admin'));
+app.use('/api/payment',  require('./routes/payment'));
 
 // Serve frontend
 app.use(express.static(path.join(__dirname, 'public')));

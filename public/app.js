@@ -440,7 +440,7 @@ function renderCart() {
   document.getElementById('total').textContent    = `₹${total}`;
 }
 
-// ── Place Order ───────────────────────────────────────────────
+// ── Place Order with Razorpay Payment ────────────────────────
 async function placeOrder() {
   if (cart.length === 0) return showToast('❌ Cart is empty!');
   const name    = document.getElementById('buyerName').value.trim();
@@ -451,25 +451,68 @@ async function placeOrder() {
 
   const subtotal = cartTotal();
   const delivery = subtotal < 500 ? 49 : 0;
+  const total    = subtotal + delivery;
 
   try {
-    const result = await api.createOrder({
-      items: cart.map(c => ({ ...c })),
-      buyer: { name, phone, address },
-      subtotal, delivery, total: subtotal + delivery,
+    // Step 1: Create Razorpay order on backend
+    const payRes = await fetch('/api/payment/create-order', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ amount: total }),
     });
+    if (!payRes.ok) {
+      const err = await payRes.json().catch(() => ({}));
+      return showToast('⚠️ Payment init failed: ' + (err.error || 'Try again'));
+    }
+    const { orderId, amount: rzpAmount } = await payRes.json();
 
-    cart.forEach(item => {
-      if (_productCache[item._id])
-        _productCache[item._id].stock = Math.max(0, (_productCache[item._id].stock || 0) - item.qty);
-    });
+    // Step 2: Open Razorpay popup (UPI / Card / NetBanking / Wallets)
+    const options = {
+      key:         'REPLACE_WITH_YOUR_RAZORPAY_KEY_ID',   // ← paste your rzp_test_xxx here
+      amount:      rzpAmount,
+      currency:    'INR',
+      name:        'KhetBazaar 🌾',
+      description: 'Agriculture Marketplace',
+      order_id:    orderId,
+      prefill: { name, contact: phone },
+      theme: { color: '#2e7d32' },
 
-    cart = []; saveCart(); updateCartBadge();
-    ['buyerName','buyerPhone','buyerAddress'].forEach(id => document.getElementById(id).value = '');
-    showToast(`🎉 Order #${String(result._id).slice(-6).toUpperCase()} placed!`);
-    renderCart();
-    navigate('orders');
-  } catch (err) { showToast('⚠️ Order failed: ' + err.message); }
+      handler: async function (response) {
+        // Step 3: Payment successful — save order to MongoDB
+        try {
+          const result = await api.createOrder({
+            items:   cart.map(c => ({ ...c })),
+            buyer:   { name, phone, address },
+            subtotal, delivery, total,
+            payment: {
+              razorpay_order_id:   response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              status: 'Paid',
+            },
+          });
+
+          cart.forEach(item => {
+            if (_productCache[item._id])
+              _productCache[item._id].stock = Math.max(0, (_productCache[item._id].stock || 0) - item.qty);
+          });
+
+          cart = []; saveCart(); updateCartBadge();
+          ['buyerName','buyerPhone','buyerAddress'].forEach(id => document.getElementById(id).value = '');
+          showToast(`🎉 Payment done! Order #${String(result._id).slice(-6).toUpperCase()} placed!`);
+          renderCart();
+          navigate('orders');
+        } catch (err) {
+          showToast('⚠️ Payment done but order save failed: ' + err.message);
+        }
+      },
+
+      modal: { ondismiss: () => showToast('ℹ️ Payment cancelled.') }
+    };
+
+    const rzp = new window.Razorpay(options);
+    rzp.open();
+
+  } catch (err) { showToast('⚠️ Error: ' + err.message); }
 }
 
 // ── Orders Page ───────────────────────────────────────────────
