@@ -468,7 +468,7 @@ async function placeOrder() {
 
     // Step 2: Open Razorpay popup (UPI / Card / NetBanking / Wallets)
     const options = {
-      key:         'REPLACE_WITH_YOUR_RAZORPAY_KEY_ID',   // ← paste your rzp_test_xxx here
+      key:         'rzp_test_SmadEq6TCWInPK',   // ← paste your rzp_test_xxx here
       amount:      rzpAmount,
       currency:    'INR',
       name:        'KhetBazaar 🌾',
